@@ -212,6 +212,8 @@ func (p *Policy) CompilePoliciesJSON() error {
             dev = NetIO_TUNNEL
         }
 
+        //if dev == NetIO_ANY then continue!
+
         //TODO: error handling
         entry.Match.ingress = dev
 
@@ -220,7 +222,6 @@ func (p *Policy) CompilePoliciesJSON() error {
         }
 
         dev = NetIO_ANY
-
 
         //TODO: change to switch
         if pol.Egress == "local" {

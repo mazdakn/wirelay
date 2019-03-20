@@ -1,7 +1,6 @@
 {
   "name": "tehran",
   "pubkey": "xxxx",
-  "topology": "topology.json",
   "policy": "bootstrap.json",
   "tuntap": "tun1",
   "tunnel": "0.0.0.0:9000"

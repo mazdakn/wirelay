@@ -9,11 +9,11 @@ import (
 )
 
 const (
-    NetIO_ANY    = 0 
-    NetIO_NULL   = 1 
-    NetIO_LOCAL  = 2 
-    NetIO_TUNNEL = 3 
-    NetIO_MAX    = 4 
+    NetIO_ANY    = 0
+    NetIO_NULL   = 1
+    NetIO_LOCAL  = 2
+    NetIO_TUNNEL = 3
+    NetIO_MAX    = 4
 )
 
 type NetIO interface {
@@ -30,7 +30,6 @@ var (
 type EngineConfiguration struct {
     Name    string `json:"name"`
     Pubkey  string `json:"pubkey"`
-    Topology string `json:"topology"`
     Policy  string  `json:"policy"`
     TunTap string `json:"tuntap"`
     Tunnel string `json:"tunnel"`
@@ -65,6 +64,7 @@ func (e *Engine) Forward(dev NetIO, waitGroup *sync.WaitGroup ) {
         // TODO: add counters
 
         if action, found = e.policy.Lookup (&pkt); !found {
+            //TODO: counter for dropped packets
             continue
         }
 
