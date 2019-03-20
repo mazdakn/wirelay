@@ -1,0 +1,18 @@
+[
+    {
+        "ingress": "tunnel",
+        "egress": "local"
+    },
+    {
+        "ingress": "local",
+        "dst": "172.16.16.0/24",
+        "egress": "tunnel",
+        "endpoint": "192.168.1.10:9000"
+    },
+    {
+        "ingress": "local",
+        "dst": "172.16.17.0/24",
+        "egress": "tunnel",
+        "endpoint": "192.168.1.10:9000"
+    }
+] 
