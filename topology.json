@@ -1,0 +1,30 @@
+[
+    {
+    "name"   : "tehran",
+    "id"     : 10,
+    "type"   : "local",
+    "key"    : "xxxxx",
+    "pubkey" : "xxxxx",
+    "acl"    : [
+        {
+            "dst"      : "172.16.16.0/24",
+            "egress"   : "tunnel",
+            "endpoint" : "192.168.1.20:9000"
+        },
+        {
+            "dst"      : "172.16.17.0/24",
+            "egress"   : "tunnel",
+            "endpoint" : "192.168.1.20:9000"
+        }]
+    },
+    {
+    "name"   : "ahvaz",
+    "id"     : 20,
+    "type"   : "tunnel",
+    "pubkey" : "aaaaaa",
+    "acl"    : [
+        {
+            "egress"   : "local"
+        }]
+    }
+]
