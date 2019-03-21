@@ -63,7 +63,6 @@ func (t *Tunnel) Receive(pkt *Packet) (error) {
     }
 
     pkt.Data = pkt.Data[:n]
-    //pkt.Ingress = NetIO_TUNNEL
 
     return nil
 }

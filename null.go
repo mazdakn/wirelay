@@ -19,6 +19,3 @@ func (null *Null) Send(pkt *Packet) (error) {
     pkt = nil
     return nil
 }
-
-
-

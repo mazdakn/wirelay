@@ -37,7 +37,6 @@ type Policy struct {
 }
 
 type PolicyEntryFile struct {
-    //Ingress		string `json:"ingress"`
     DstSubnet	string `json:"dst"`
     SrcSubnet   string `json:"src"`
     Egress		uint8 `json:"egress"`
@@ -54,22 +53,8 @@ func (p *Policy) Flush() {
     p.Init()
 }
 
-func (p *Policy) CheckEntry(entry PolicyEntry) (error) {
-    //TODO: need debugging
-
-    if entry.Action.egress == NetIO_ANY {
-        return ErrPolicyEmptyAction
-    }
-
-    return nil
-}
-
 func (p *Policy) Append(entry PolicyEntry) (error) {
     // TODO: error handling
-    if err := p.CheckEntry(entry); err != nil {
-        return err
-    }
-
     p.table = append(p.table, entry)
     return nil
 }
@@ -78,10 +63,6 @@ func (p *Policy) Add(entry PolicyEntry, index int) (error) {
     // TODO: error handling
     if (index < 0) || (index >= len(p.table)) {
         return ErrPolicyIndexInvalid
-    }
-
-    if err := p.CheckEntry(entry); err != nil {
-        return err
     }
 
     p.table[index] = entry
@@ -192,10 +173,6 @@ func (p *Policy) CompilePolicies(policies []PolicyEntryFile) error {
 				endpoint = nil
 			}
 		}
-
-        if pol.Egress == 0 {
-            continue
-        }
 
         entry.Action.egress = pol.Egress
         entry.Action.endpoint = endpoint

@@ -40,7 +40,6 @@ func (iface *TunTap) Receive(pkt *Packet) (error) {
     // TODO: more error handling
 
     pkt.Data = pkt.Data[:n]
-    pkt.Ingress = NetIO_LOCAL
 
     return nil
 }

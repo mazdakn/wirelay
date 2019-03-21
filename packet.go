@@ -6,7 +6,6 @@ import (
 
 type Packet struct {
     Data        []byte
-    Ingress     uint8
     Endpoint    *net.UDPAddr
 }
 
