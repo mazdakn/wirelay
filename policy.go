@@ -4,8 +4,6 @@ import (
     "net"
     "log"
     "errors"
-    "io/ioutil"
-    "encoding/json"
     "strconv"
 )
 
@@ -18,7 +16,7 @@ var (
 type PolicyMatch struct {
     dstSubnet	*net.IPNet
     srcSubnet   *net.IPNet
-    ingress		uint8
+    //ingress		uint8
 }
 
 type PolicyAction struct {
@@ -36,15 +34,13 @@ type PolicyTable []PolicyEntry
 
 type Policy struct {
     table PolicyTable
-    configFile string
-    Interfaces []NetIO
 }
 
 type PolicyEntryFile struct {
-    Ingress		string `json:"ingress"`
+    //Ingress		string `json:"ingress"`
     DstSubnet	string `json:"dst"`
     SrcSubnet   string `json:"src"`
-    Egress		string `json:"egress"`
+    Egress		uint8 `json:"egress"`
     Endpoint	string `json:"endpoint"`
     ttl         int    `json:"ttl"`
 }
@@ -110,10 +106,6 @@ func (p *Policy) Lookup(pkt *Packet) (PolicyAction, bool) {
 
 func (p *Policy) Match(entry PolicyEntry, pkt *Packet) (bool) {
 
-    if (entry.Match.ingress != NetIO_ANY) && (entry.Match.ingress != pkt.Ingress) {
-        return false
-    }
-
     if (entry.Match.dstSubnet != nil) && (!entry.Match.dstSubnet.Contains(pkt.GetDestinationIPv4())) {
         return false
     }
@@ -130,7 +122,7 @@ func (p *Policy) Dump() {
 
     for _, item := range p.table {
 
-        output = strconv.Itoa(int(item.Match.ingress)) + " "
+        output = " "
 
         if item.Match.srcSubnet != nil {
             output = output + item.Match.srcSubnet.String()
@@ -161,24 +153,12 @@ func (p *Policy) Dump() {
     }
 }
 
-func (p *Policy) CompilePoliciesJSON() error {
-    var bytes []byte
-    var err error
-    var policies []PolicyEntryFile
+func (p *Policy) CompilePolicies(policies []PolicyEntryFile) error {
 
     index := 0
 
-    if bytes, err = ioutil.ReadFile(p.configFile); err != nil {
-        return (err)
-    }
-
-    if err := json.Unmarshal(bytes, &policies); err != nil {
-        return err
-    }
-
     for _, pol := range policies {
         var subnet *net.IPNet
-        var dev uint8
         var endpoint *net.UDPAddr
         var err error
 
@@ -193,7 +173,6 @@ func (p *Policy) CompilePoliciesJSON() error {
 		    entry.Match.dstSubnet = subnet
         }
 
-
 		if pol.SrcSubnet != "" {
             if _, subnet, err = net.ParseCIDR(pol.SrcSubnet); err != nil {
                 //TODO: log and continue
@@ -203,37 +182,8 @@ func (p *Policy) CompilePoliciesJSON() error {
             entry.Match.srcSubnet = subnet
         }
 
-        dev = NetIO_ANY
-        if pol.Ingress == "local" {
-            dev = NetIO_LOCAL
-        }
-
-        if pol.Ingress == "tunnel" {
-            dev = NetIO_TUNNEL
-        }
-
-        //if dev == NetIO_ANY then continue!
-
-        //TODO: error handling
-        entry.Match.ingress = dev
-
         if pol.ttl > 0 {
             entry.TimeToLive = pol.ttl
-        }
-
-        dev = NetIO_ANY
-
-        //TODO: change to switch
-        if pol.Egress == "local" {
-            dev = NetIO_LOCAL
-        }
-
-        if pol.Egress == "tunnel" {
-            dev = NetIO_TUNNEL
-        }
-
-        if pol.Egress == "null" {
-            dev = NetIO_NULL
         }
 
 		if pol.Endpoint != "" {
@@ -243,18 +193,12 @@ func (p *Policy) CompilePoliciesJSON() error {
 			}
 		}
 
-		switch pol.Egress {
-		case "local":
-			entry.Action.egress = NetIO_LOCAL
-        case "drop":
-            entry.Action.egress = NetIO_NULL
-        case "tunnel":
-            entry.Action.egress = NetIO_TUNNEL
-            entry.Action.endpoint = endpoint
-        default:
-			log.Println ("Invalid Action - igonoring the policy")
-			continue
-		}
+        if pol.Egress == 0 {
+            continue
+        }
+
+        entry.Action.egress = pol.Egress
+        entry.Action.endpoint = endpoint
 
 		p.Append(entry)
 		index++

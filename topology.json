@@ -1,30 +1,31 @@
 [
     {
-    "name"   : "tehran",
-    "id"     : 10,
-    "type"   : "local",
+    "name"   : "tehran",    
+    "id"     : 1,
+    "type"   : "LOCAL",
     "key"    : "xxxxx",
     "pubkey" : "xxxxx",
-    "acl"    : [
+    "policy" : [
         {
             "dst"      : "172.16.16.0/24",
-            "egress"   : "tunnel",
+            "egress"   : 2,
             "endpoint" : "192.168.1.20:9000"
         },
         {
             "dst"      : "172.16.17.0/24",
-            "egress"   : "tunnel",
+            "egress"   : 2,
             "endpoint" : "192.168.1.20:9000"
         }]
     },
     {
     "name"   : "ahvaz",
-    "id"     : 20,
-    "type"   : "tunnel",
+    "id"     : 2,
+    "type"   : "TUNNEL",
+    "address": "0.0.0.0:9000",
     "pubkey" : "aaaaaa",
-    "acl"    : [
+    "policy" : [
         {
-            "egress"   : "local"
+            "egress"   : 1
         }]
     }
 ]

@@ -12,8 +12,8 @@ const (
     NetIO_ANY    = 0
     NetIO_NULL   = 1
     NetIO_LOCAL  = 2
-    NetIO_TUNNEL = 3
-    NetIO_MAX    = 4
+    //NetIO_TUNNEL = 3
+    NetIO_MAX    = 10
 )
 
 type NetIO interface {
@@ -28,21 +28,30 @@ var (
 )
 
 type EngineConfiguration struct {
-    Name    string `json:"name"`
-    Pubkey  string `json:"pubkey"`
-    Policy  string  `json:"policy"`
-    TunTap string `json:"tuntap"`
-    Tunnel string `json:"tunnel"`
+    Name     string `json:"name"`
+    ID       uint8  `json:"id"`
+    Type     string `json:"type"`
+    Address  string `json:"address"`
+    Key      string `json:"key"`
+    Pubkey   string `json:"pubkey"`
+    Policies []PolicyEntryFile `json:"policy"`
+    //Policy  string  `json:"policy"`
+    //TunTap  string `json:"tuntap"`
+    //Tunnel  string `json:"tunnel"`
+}
+
+type EngineEntry struct {
+    policy Policy
+    netio  NetIO
 }
 
 type Engine struct {
-    Configfile  string
-    config      EngineConfiguration
-    policy      Policy
-    interfaces []NetIO
+    Configfile string
+    config     []EngineConfiguration
+    interfaces []EngineEntry
 }
 
-func (e *Engine) Forward(dev NetIO, waitGroup *sync.WaitGroup ) {
+func (e *Engine) Forward(entry EngineEntry, waitGroup *sync.WaitGroup ) {
     var pkt Packet
     var action PolicyAction
     var found bool
@@ -52,7 +61,7 @@ func (e *Engine) Forward(dev NetIO, waitGroup *sync.WaitGroup ) {
         // TODO: set MTU and read correct number of bytes
         pkt.Data = make([]byte, 2000)
 
-        if err := dev.Receive (&pkt); err != nil {
+        if err := entry.netio.Receive(&pkt); err != nil {
             log.Print (err)
             continue
         }
@@ -63,13 +72,13 @@ func (e *Engine) Forward(dev NetIO, waitGroup *sync.WaitGroup ) {
 
         // TODO: add counters
 
-        if action, found = e.policy.Lookup (&pkt); !found {
+        if action, found = entry.policy.Lookup (&pkt); !found {
             //TODO: counter for dropped packets
             continue
         }
 
         pkt.Endpoint = action.endpoint
-        if err := e.interfaces[action.egress].Send(&pkt); err != nil {
+        if err := e.interfaces[action.egress].netio.Send(&pkt); err != nil {
             log.Println (err)
         }
         //if err := action.Perform(&pkt); err != nil {
@@ -86,19 +95,28 @@ func (e *Engine) Start() {
 
 	log.Println ("Starting wirelay core")
 
-    log.Println("Startin tunnel")
-    go e.Forward(e.interfaces[NetIO_TUNNEL], &waitGroup)
-    waitGroup.Add(1)
+    for index, entry := range e.interfaces {
+        if entry.netio != nil{
+            log.Println("Starting interface", index, entry)
+            go e.Forward(entry, &waitGroup)
+            waitGroup.Add(1)
+        }
+    }
+        /*log.Println("Startin tunnel")
+        go e.Forward(e.interfaces[NetIO_TUNNEL], &waitGroup)
+        waitGroup.Add(1)
 
-    log.Println("Starting tuntap")
-    go e.Forward(e.interfaces[NetIO_LOCAL], &waitGroup)
-    waitGroup.Add(1)
+        log.Println("Starting tuntap")
+        go e.Forward(e.interfaces[NetIO_LOCAL], &waitGroup)
+        waitGroup.Add(1)*/
 
 	waitGroup.Wait()
 	log.Println ("Shuting down")
 }
 
 func (e *Engine) Init () (error) {
+    var entry EngineEntry
+
     if e.Configfile == "" {
         return ErrEngineConfigFile
     }
@@ -107,13 +125,45 @@ func (e *Engine) Init () (error) {
         return ErrEngineConfigFile
     }
 
-    e.interfaces = make([]NetIO, NetIO_MAX)
+    e.interfaces = make([]EngineEntry, NetIO_MAX)
 
+    for _, netio := range e.config {
+
+        if netio.Type == "NULL" {
+            entry.netio = &Null{}
+        }
+
+        if netio.Type == "LOCAL" {
+            entry.netio = &TunTap{Name: netio.Name}
+        }
+
+        if netio.Type == "TUNNEL" {
+            entry.netio = &Tunnel{LocalSocket: netio.Address}
+        }
+
+        if err := entry.netio.Init(); err != nil {
+            return err
+        }
+
+        entry.policy = Policy{}
+        entry.policy.Init()
+        if err := entry.policy.CompilePolicies(netio.Policies); err != nil {
+            return err
+        }
+
+        log.Println("Interface:", netio.Name)
+        entry.policy.Dump()
+
+        e.interfaces[netio.ID] = entry
+        //e.Interfaces = append(e.interfaces, entry)
+    }
+
+    /*
     //  is it necessary?
-    e.interfaces[NetIO_ANY] = nil
+    interfaces[NetIO_ANY] = nil
 
-    e.interfaces[NetIO_NULL] = &Null{}
-    if err := e.interfaces[NetIO_NULL].Init(); err != nil {
+    //interfaces[NetIO_NULL] = &Null{}
+    err := e.interfaces[NetIO_NULL].Init(); err != nil {
         return err
     }
 
@@ -128,12 +178,10 @@ func (e *Engine) Init () (error) {
     }
 
     e.policy.configFile = e.config.Policy
-    e.policy.Interfaces = e.interfaces
     e.policy.Init()
     if err := e.policy.CompilePoliciesJSON(); err != nil {
         return err
-    }
-    e.policy.Dump()
+    }*/
 
     //t := netio.UDPTunnel{LocalSocket: e.config.Tunnel, Endpoint: "192.168.1.10:9000"}
     //t1 := netio.UDPTunnel{LocalSocket: e.config.Tunnel, Endpoint: "192.168.1.20:9000"}
