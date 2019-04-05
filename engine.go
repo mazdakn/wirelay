@@ -3,35 +3,11 @@ package main
 import (
     "log"
     "sync"
-    "io/ioutil"
-    "encoding/json"
-    "errors"
+    //"errors"
+	"os"
+	"os/signal"
+	"syscall"
 )
-
-const (
-    NetIO_MAX    = 10
-)
-
-type NetIO interface {
-    Init() (error)
-    Close() (error)
-    Receive(*Packet) (error)
-    Send(*Packet) (error)
-}
-
-var (
-    ErrEngineConfigFile = errors.New("Error in config file")
-)
-
-type EngineConfiguration struct {
-    Name     string `json:"name"`
-    ID       uint8  `json:"id"`
-    Type     string `json:"type"`
-    Address  string `json:"address"`
-    Key      string `json:"key"`
-    Pubkey   string `json:"pubkey"`
-    Policies []PolicyEntryFile `json:"policy"`
-}
 
 type EngineEntry struct {
     policy Policy
@@ -39,8 +15,7 @@ type EngineEntry struct {
 }
 
 type Engine struct {
-    Configfile string
-    config     []EngineConfiguration
+    conf Configuration
     interfaces []EngineEntry
 }
 
@@ -102,17 +77,9 @@ func (e *Engine) Start() {
 func (e *Engine) Init () (error) {
     var entry EngineEntry
 
-    if e.Configfile == "" {
-        return ErrEngineConfigFile
-    }
+    e.interfaces = make([]EngineEntry, 10)
 
-    if err := e.ReadJSON(); err != nil {
-        return ErrEngineConfigFile
-    }
-
-    e.interfaces = make([]EngineEntry, NetIO_MAX)
-
-    for _, netio := range e.config {
+    for _, netio := range e.conf.content {
 
         if netio.Type == "NULL" {
             entry.netio = &Null{}
@@ -142,35 +109,33 @@ func (e *Engine) Init () (error) {
         e.interfaces[netio.ID] = entry
     }
 
-    return nil
-}
-
-func (e *Engine) ReadJSON() (error) {
-    var bytes []byte
-    var err error
-
-    if bytes, err = ioutil.ReadFile(e.Configfile); err != nil {
-        return err
-    }
-
-    if err := json.Unmarshal(bytes, &e.config); err != nil {
-        return err
-    }
+	e.setupSignal()
+	log.Println("Singnal initiated")
 
     return nil
 }
 
-func (e *Engine) SaveJSON() (error) {
-    var bytes []byte
-    var err error
 
-    if bytes, err = json.Marshal(&e.config); err != nil {
-        return err
+// signal handler for Interrupt, Terminate, and SIGHUP
+func (e *Engine) signalHandler(signal chan os.Signal) {
+    for {
+        sig := <-signal
+        switch sig {
+        case os.Interrupt, syscall.SIGTERM:
+            log.Println ("Shutting down")
+            // TODO: use channel to shutdown gracefully
+            os.Exit (1)
+        case syscall.SIGHUP:
+            // TODO: reload configuration from config file and refresh all connections  
+            log.Println ("Reloading configuration")
+        }
     }
+}
 
-    if err = ioutil.WriteFile(e.Configfile, bytes, 0644); err != nil {
-        return err
-    }
 
-    return nil
+// setup and register signal handler
+func (e *Engine) setupSignal() {
+    sigs := make(chan os.Signal, 1)
+    signal.Notify(sigs)
+    go e.signalHandler(sigs)
 }

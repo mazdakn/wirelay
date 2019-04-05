@@ -16,7 +16,6 @@ var (
 type PolicyMatch struct {
     dstSubnet	*net.IPNet
     srcSubnet   *net.IPNet
-    //ingress		uint8
 }
 
 type PolicyAction struct {
@@ -34,14 +33,6 @@ type PolicyTable []PolicyEntry
 
 type Policy struct {
     table PolicyTable
-}
-
-type PolicyEntryFile struct {
-    DstSubnet	string `json:"dst"`
-    SrcSubnet   string `json:"src"`
-    Egress		uint8 `json:"egress"`
-    Endpoint	string `json:"endpoint"`
-    ttl         int    `json:"ttl"`
 }
 
 func (p *Policy) Init() {
