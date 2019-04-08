@@ -39,30 +39,11 @@ func (p *Policy) Init() {
     p.table = make(PolicyTable,0)
 }
 
-func (p *Policy) Flush() {
-    p.table = nil
-    p.Init()
-}
 
 func (p *Policy) Append(entry PolicyEntry) (error) {
     // TODO: error handling
     p.table = append(p.table, entry)
     return nil
-}
-
-func (p *Policy) Add(entry PolicyEntry, index int) (error) {
-    // TODO: error handling
-    if (index < 0) || (index >= len(p.table)) {
-        return ErrPolicyIndexInvalid
-    }
-
-    p.table[index] = entry
-    return nil
-}
-
-func (p *Policy) Del(index int) {
-    //TODO: error handling
-    p.table = append(p.table[:index], p.table[:index+1]...)
 }
 
 // TODO: other field for lookup
@@ -160,8 +141,7 @@ func (p *Policy) CompilePolicies(policies []PolicyEntryFile) error {
 
 		if pol.Endpoint != "" {
 			if endpoint, err = net.ResolveUDPAddr("udp4", pol.Endpoint); err != nil {
-				log.Println (err)
-				endpoint = nil
+				return err
 			}
 		}
 
