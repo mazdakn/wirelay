@@ -53,7 +53,7 @@ type EngineEntry struct {
     netio       NetIO
     policy      []PolicyEntry
     counters    Counters
-    name        string
+    metadata    EngineConfiguration
 }
 
 type Engine struct {
@@ -76,13 +76,13 @@ func (e *Engine) Init() {
 
     e.links = make([]EngineEntry, 0)
 
-    for _, netio := range e.conf.content {
+    for _, link := range e.conf.content {
 
-        switch netio.Type {
+        switch link.Type {
         case "LOCAL":
-            entry.netio = &TunTap{Name: netio.Name}
+            entry.netio = &TunTap{Name: link.Name}
         case "TUNNEL":
-            entry.netio = &Tunnel{LocalSocket: netio.Address}
+            entry.netio = &Tunnel{LocalSocket: link.Address}
         default:
             log.Println ("Invalid NetIO type")
         }
@@ -90,15 +90,13 @@ func (e *Engine) Init() {
         err = entry.netio.Init()
         Fatal(err)
 
-        entry.name = netio.Name
+        entry.metadata = link
 
         e.links = append(e.links, entry)
     }
 
-    for index, netio := range e.conf.content {
-
-        err = e.CompilePolicies(index, netio.Policies)
-        //g.Println(e.links[index].policy)
+    for index, link := range e.conf.content {
+        err = e.CompilePolicies(index, link.Policies)
         Fatal(err)
     }
 
@@ -247,7 +245,7 @@ func (e *Engine) CompilePolicies(index int, policies []PolicyEntryFile) (error) 
 func (e *Engine) FindNetIOByName(name string) (int, bool) {
 
     for index, item := range e.links {
-        if item.name == name {
+        if item.metadata.Name == name {
             return index, true
         }
     }
@@ -281,9 +279,9 @@ func (e *Engine) DumpPolicies() {
 
     for _, link := range e.links {
 
-        Print("Link " +  link.name)
+        Print("Link " +  link.metadata.Name)
 
-        for _, pol := range link.policy {
+        for index, pol := range link.policy {
 
             output = " "
 
@@ -301,7 +299,7 @@ func (e *Engine) DumpPolicies() {
                 output = output + "*"
             }
 
-            output = output + " " //+ item.Action.egress + " "
+            output = output + " ==> " + link.metadata.Policies[index].Egress + " "
 
             if pol.Action.endpoint != nil {
                 output = output + pol.Action.endpoint.String()
@@ -320,10 +318,10 @@ func (e *Engine) DumpPolicies() {
 
 func (e *Engine) PrintCounters() {
 
-    Print("Enging counters:")
+    Print("Engine counters:")
 
     for _, entry := range e.links {
-        log.Println("Link", entry.name)
+        log.Println("Link", entry.metadata.Name)
         log.Println("\tReceived:\t", entry.counters.Received)
         log.Println("\tSent:\t\t", entry.counters.Sent)
         log.Println("\tDropped:\t", entry.counters.Dropped)
