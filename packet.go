@@ -7,6 +7,7 @@ import (
 type Packet struct {
     Data        []byte
     Endpoint    *net.UDPAddr
+    Size        uint16
 }
 
 // TODO: Add IPv6 support

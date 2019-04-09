@@ -15,7 +15,6 @@ var (
 
 type EngineConfiguration struct {
     Name     string `json:"name"`
-    ID       uint8  `json:"id"`
     Type     string `json:"type"`
     Address  string `json:"address"`
     Key      string `json:"key"`
@@ -26,7 +25,7 @@ type EngineConfiguration struct {
 type PolicyEntryFile struct {
     DstSubnet   string `json:"dst"`
     SrcSubnet   string `json:"src"`
-    Egress      uint8 `json:"egress"`
+    Egress      string `json:"egress"`
     Endpoint    string `json:"endpoint"`
     ttl         int    `json:"ttl"`
 }

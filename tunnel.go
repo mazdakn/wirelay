@@ -62,7 +62,7 @@ func (t *Tunnel) Receive(pkt *Packet) (error) {
         return ErrTunnelSocketClosed
     }
 
-    pkt.Data = pkt.Data[:n]
+    pkt.Size = uint16(n)
 
     return nil
 }
@@ -76,7 +76,7 @@ func (t *Tunnel) Send(pkt *Packet) (error) {
     }
 
     // send packet to udp tunnel
-    if _, err = t.listener.WriteToUDP (pkt.Data, pkt.Endpoint); err != nil {
+    if _, err = t.listener.WriteToUDP (pkt.Data[:pkt.Size], pkt.Endpoint); err != nil {
         return err
     }
 

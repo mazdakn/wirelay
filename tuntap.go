@@ -31,7 +31,7 @@ func (iface *TunTap) Close() (error) {
 
 func (iface *TunTap) Receive(pkt *Packet) (error) {
     var err error
-    var n int
+    var n   int
 
     if n, err = iface.device.Read(pkt.Data); err != nil {
         return err
@@ -39,13 +39,13 @@ func (iface *TunTap) Receive(pkt *Packet) (error) {
 
     // TODO: more error handling
 
-    pkt.Data = pkt.Data[:n]
+    pkt.Size = uint16(n)
 
     return nil
 }
 
 func (iface *TunTap) Send(pkt *Packet) (error) {
 
-    iface.device.Write(pkt.Data)
+    iface.device.Write(pkt.Data[:pkt.Size])
     return nil
 }
