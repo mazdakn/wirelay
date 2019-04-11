@@ -15,7 +15,6 @@ var (
 
 type EngineConfiguration struct {
     Name     string `json:"name"`
-    Type     string `json:"type"`
     Address  string `json:"address"`
     Key      string `json:"key"`
     Pubkey   string `json:"pubkey"`
@@ -32,7 +31,7 @@ type PolicyEntryFile struct {
 
 type Configuration struct {
 	Filename string
-	content	 []EngineConfiguration
+	content	 EngineConfiguration
 }
 
 func (c *Configuration) Init() (error) {

@@ -30,7 +30,7 @@ type PolicyMatch struct {
 }
 
 type PolicyAction struct {
-    egress      *NetIO
+    egress      NetIO
     endpoint    *net.UDPAddr
 }
 
@@ -51,14 +51,15 @@ type Counters struct {
 
 type EngineEntry struct {
     netio       NetIO
-    policy      []PolicyEntry
     counters    Counters
-    metadata    EngineConfiguration
 }
 
 type Engine struct {
     conf Configuration
-    links []EngineEntry
+    policy []PolicyEntry
+    links  []EngineEntry
+    local  EngineEntry
+    tunnel EngineEntry
 }
 
 
@@ -68,37 +69,22 @@ type Engine struct {
    3 - Setup the signal handler
 */
 func (e *Engine) Init() {
-    var entry EngineEntry
     var err   error
 
     err = e.conf.Init()
     Fatal(err)
 
-    e.links = make([]EngineEntry, 0)
+    // Create local TUN interface
+    e.local.netio = &TunTap{Name: e.conf.content.Name}
+    err = e.local.netio.Init()
+    Fatal(err)
 
-    for _, link := range e.conf.content {
+    e.tunnel.netio = &Tunnel{LocalSocket: e.conf.content.Address}
+    err = e.tunnel.netio.Init()
+    Fatal(err)
 
-        switch link.Type {
-        case "LOCAL":
-            entry.netio = &TunTap{Name: link.Name}
-        case "TUNNEL":
-            entry.netio = &Tunnel{LocalSocket: link.Address}
-        default:
-            log.Println ("Invalid NetIO type")
-        }
-
-        err = entry.netio.Init()
-        Fatal(err)
-
-        entry.metadata = link
-
-        e.links = append(e.links, entry)
-    }
-
-    for index, link := range e.conf.content {
-        err = e.CompilePolicies(index, link.Policies)
-        Fatal(err)
-    }
+    err = e.CompilePolicies(e.conf.content.Policies)
+    Fatal(err)
 
     // Setup and register signal handler
     sigs := make(chan os.Signal, 1)
@@ -117,7 +103,8 @@ func (e *Engine) signalHandler(signal chan os.Signal) {
         case syscall.SIGUSR2:
             e.DumpPolicies()
         case os.Interrupt, syscall.SIGTERM:
-            Exit("Shutting down")
+            Print("Shutting down")
+            os.Exit(0)
             // TODO: use channel to shutdown gracefully
         case syscall.SIGHUP:
             // TODO: reload configuration from config file and refresh all connections  
@@ -132,19 +119,16 @@ func (e *Engine) Start() {
 
 	Print("Starting wirelay core")
 
-    for index, entry := range e.links {
-        if entry.netio != nil{
-            go e.Forward(index, entry, &waitGroup)
-            waitGroup.Add(1)
-        }
-    }
+    go e.Forward(&e.local, &waitGroup)
+    go e.Forward(&e.tunnel, &waitGroup)
+    waitGroup.Add(2)
 
 	waitGroup.Wait()
 	Print("Shuting down")
 }
 
 
-func (e *Engine) Forward(index int, entry EngineEntry, waitGroup *sync.WaitGroup) {
+func (e *Engine) Forward(dev *EngineEntry, waitGroup *sync.WaitGroup) {
     var pkt Packet
     var action PolicyAction
     var found bool
@@ -154,40 +138,40 @@ func (e *Engine) Forward(index int, entry EngineEntry, waitGroup *sync.WaitGroup
 
     defer waitGroup.Done()
     for {
-        if err := entry.netio.Receive(&pkt); err != nil {
-            entry.counters.ErrReceive++
+        if err := dev.netio.Receive(&pkt); err != nil {
+            dev.counters.ErrReceive++
             continue
         }
 
-        e.links[index].counters.Received++
+        dev.counters.Received++
 
         if !pkt.IsIPv4() {
-            entry.counters.UnSupported++
+            dev.counters.UnSupported++
             continue
         }
 
-        if action, found = e.Lookup(index, &pkt); !found {
-            entry.counters.Dropped++
+        if action, found = e.Lookup(&pkt); !found {
+            dev.counters.Dropped++
             continue
         }
 
         if action.egress == nil {
-            entry.counters.Dropped++
+            dev.counters.Dropped++
             continue
         }
 
         pkt.Endpoint = action.endpoint
-        if err := (*action.egress).Send(&pkt); err != nil {
-            entry.counters.ErrSend++
+        if err := action.egress.Send(&pkt); err != nil {
+            dev.counters.ErrSend++
             continue
         }
 
-        e.links[index].counters.Sent++
+        dev.counters.Sent++
     }
 }
 
 
-func (e *Engine) CompilePolicies(index int, policies []PolicyEntryFile) (error) {
+func (e *Engine) CompilePolicies(policies []PolicyEntryFile) (error) {
 
     tmpPolicy := make([]PolicyEntry, 0)
 
@@ -226,10 +210,10 @@ func (e *Engine) CompilePolicies(index int, policies []PolicyEntryFile) (error) 
             }
         }
 
-        if index, found := e.FindNetIOByName(pol.Egress); found {
-            entry.Action.egress = &(e.links[index].netio)
-        } else {
-            entry.Action.egress = nil
+        switch pol.Egress {
+        case "LOCAL"  : entry.Action.egress = e.local.netio
+        case "TUNNEL" : entry.Action.egress = e.tunnel.netio
+        default       : entry.Action.egress = nil
         }
 
         entry.Action.endpoint = endpoint
@@ -237,26 +221,13 @@ func (e *Engine) CompilePolicies(index int, policies []PolicyEntryFile) (error) 
         tmpPolicy = append(tmpPolicy, entry)
     }
 
-    e.links[index].policy = tmpPolicy
+    e.policy = tmpPolicy
     return nil
 }
 
+func (e *Engine) Lookup(pkt *Packet) (PolicyAction, bool) {
 
-func (e *Engine) FindNetIOByName(name string) (int, bool) {
-
-    for index, item := range e.links {
-        if item.metadata.Name == name {
-            return index, true
-        }
-    }
-
-    return 0, false
-}
-
-
-func (e *Engine) Lookup(index int, pkt *Packet) (PolicyAction, bool) {
-
-    for _, entry := range e.links[index].policy {
+    for _, entry := range e.policy {
         if (entry.Match.dstSubnet != nil) && (!entry.Match.dstSubnet.Contains(pkt.GetDestinationIPv4())) {
             continue
         }
@@ -277,41 +248,35 @@ func (e *Engine) DumpPolicies() {
 
     Print("Engine policies:")
 
-    for _, link := range e.links {
+    for _, pol := range e.policy {
 
-        Print("Link " +  link.metadata.Name)
+        output = " "
 
-        for index, pol := range link.policy {
-
-            output = " "
-
-            if pol.Match.srcSubnet != nil {
-                output = output + pol.Match.srcSubnet.String()
-            } else {
-                output = output + "*"
-            }
-
-            output = output + " "
-
-            if pol.Match.dstSubnet != nil {
-                output = output + pol.Match.dstSubnet.String()
-            } else {
-                output = output + "*"
-            }
-
-            output = output + " ==> " + link.metadata.Policies[index].Egress + " "
-
-            if pol.Action.endpoint != nil {
-                output = output + pol.Action.endpoint.String()
-            } else {
-                output = output + "*"
-            }
-
-            output = output + " "
-            output = output + strconv.Itoa(pol.TimeToLive)
-
-            log.Println(output)
+        if pol.Match.srcSubnet != nil {
+            output = output + pol.Match.srcSubnet.String()
+        } else {
+            output = output + "*"
         }
+
+        output = output + " "
+
+        if pol.Match.dstSubnet != nil {
+            output = output + pol.Match.dstSubnet.String()
+        } else {
+            output = output + "*"
+        }
+
+        output = output + " ==> "
+
+        if pol.Action.endpoint != nil {
+            output = output + pol.Action.endpoint.String()
+        } else {
+            output = output + "*"
+        }
+
+       output = " " + output + strconv.Itoa(pol.TimeToLive)
+
+       log.Println(output)
     }
 }
 
@@ -321,7 +286,7 @@ func (e *Engine) PrintCounters() {
     Print("Engine counters:")
 
     for _, entry := range e.links {
-        log.Println("Link", entry.metadata.Name)
+        //log.Println("Link", entry.metadata.Name)
         log.Println("\tReceived:\t", entry.counters.Received)
         log.Println("\tSent:\t\t", entry.counters.Sent)
         log.Println("\tDropped:\t", entry.counters.Dropped)

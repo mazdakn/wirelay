@@ -1,29 +1,17 @@
-[
+{
+"name"   : "tehran",    
+"address": "0.0.0.0:9000",
+"key"    : "xxxxx",
+"pubkey" : "xxxxx",
+"policy" : [
     {
-    "name"   : "tehran",    
-    "type"   : "LOCAL",
-    "key"    : "xxxxx",
-    "pubkey" : "xxxxx",
-    "policy" : [
-        {
-            "dst"      : "172.16.16.0/24",
-            "egress"   : "ahvaz",
-            "endpoint" : "192.168.1.10:9000"
-        },
-        {
-            "dst"      : "172.16.17.0/24",
-            "egress"   : "ahvaz",
-            "endpoint" : "192.168.1.20:9000"
-        }]
+        "dst"      : "172.16.16.0/24",
+        "egress"   : "ahvaz",
+        "endpoint" : "192.168.1.10:9000"
     },
     {
-    "name"   : "ahvaz",
-    "type"   : "TUNNEL",
-    "address": "0.0.0.0:9000",
-    "pubkey" : "aaaaaa",
-    "policy" : [
-        {
-            "egress"   : "tehran"
-        }]
-    }
-]
+        "dst"      : "172.16.17.0/24",
+        "egress"   : "ahvaz",
+        "endpoint" : "192.168.1.20:9000"
+    }]
+}    
