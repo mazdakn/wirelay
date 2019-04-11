@@ -29,7 +29,14 @@ type PolicyMatch struct {
     srcSubnet   *net.IPNet
 }
 
+//const (
+//    ACTION_FORWARD  uint8 = 0
+//    ACTION_TUNNEL   uint8 = 1
+//    ACTION_DROP     uint8 = 2
+//)
+
 type PolicyAction struct {
+    //action      uint8
     egress      NetIO
     endpoint    *net.UDPAddr
 }
@@ -57,7 +64,6 @@ type EngineEntry struct {
 type Engine struct {
     conf Configuration
     policy []PolicyEntry
-    links  []EngineEntry
     local  EngineEntry
     tunnel EngineEntry
 }
@@ -210,7 +216,7 @@ func (e *Engine) CompilePolicies(policies []PolicyEntryFile) (error) {
             }
         }
 
-        switch pol.Egress {
+        switch pol.Action {
         case "LOCAL"  : entry.Action.egress = e.local.netio
         case "TUNNEL" : entry.Action.egress = e.tunnel.netio
         default       : entry.Action.egress = nil
@@ -248,9 +254,9 @@ func (e *Engine) DumpPolicies() {
 
     Print("Engine policies:")
 
-    for _, pol := range e.policy {
+    for index, pol := range e.policy {
 
-        output = " "
+        output = "[" + strconv.Itoa(index) + "] "
 
         if pol.Match.srcSubnet != nil {
             output = output + pol.Match.srcSubnet.String()
@@ -268,25 +274,34 @@ func (e *Engine) DumpPolicies() {
 
         output = output + " ==> "
 
-        if pol.Action.endpoint != nil {
-            output = output + pol.Action.endpoint.String()
-        } else {
-            output = output + "*"
+        switch pol.Action.egress {
+        case e.local.netio :    output = output + "local "
+        case e.tunnel.netio:    output = output + "forward "
+        case nil:               output = output + "drop "
+        default:                output = output + "unknown "
         }
 
-       output = " " + output + strconv.Itoa(pol.TimeToLive)
+        if pol.Action.endpoint != nil {
+            output = output + pol.Action.endpoint.String()
+        }
 
-       log.Println(output)
+        if pol.TimeToLive != 0 {
+            output = " " + output + strconv.Itoa(pol.TimeToLive)
+        }
+
+        log.Println(output)
     }
 }
 
 
 func (e *Engine) PrintCounters() {
 
+    links := []EngineEntry{e.local, e.tunnel}
+    names := []string{"Local", "Tunnel"}
     Print("Engine counters:")
 
-    for _, entry := range e.links {
-        //log.Println("Link", entry.metadata.Name)
+    for index, entry := range links {
+        log.Println(names[index] + ":")
         log.Println("\tReceived:\t", entry.counters.Received)
         log.Println("\tSent:\t\t", entry.counters.Sent)
         log.Println("\tDropped:\t", entry.counters.Dropped)

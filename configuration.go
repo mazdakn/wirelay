@@ -24,7 +24,7 @@ type EngineConfiguration struct {
 type PolicyEntryFile struct {
     DstSubnet   string `json:"dst"`
     SrcSubnet   string `json:"src"`
-    Egress      string `json:"egress"`
+    Action      string `json:"action"`
     Endpoint    string `json:"endpoint"`
     ttl         int    `json:"ttl"`
 }
