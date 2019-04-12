@@ -1,9 +1,10 @@
 {
-"name"   : "tehran",    
-"address": "0.0.0.0:9000",
-"key"    : "xxxxx",
-"pubkey" : "xxxxx",
-"policy" : [
+"name"    : "tehran",    
+"control" : "0.0.0.0:9001",
+"data"    : "0.0.0.0:9000",
+"key"     : "xxxxx",
+"pubkey"  : "xxxxx",
+"policy"  : [
     {
         "dst"       : "172.16.16.0/24",
         "action"    : "FORWARD",

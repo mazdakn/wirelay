@@ -16,7 +16,8 @@ var (
 
 type EngineConfiguration struct {
     Name     string             `json:"name"`
-    Address  string             `json:"address"`
+    Control  string             `json:"control"`
+    Data     string             `json:"data"`
     Key      string             `json:"key"`
     Pubkey   string             `json:"pubkey"`
     Policies []PolicyEntryFile  `json:"policy"`

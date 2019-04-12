@@ -22,3 +22,8 @@ type Counters struct {
     ErrSend     uint32
     UnSupported uint32
 }
+
+type NetworkPort struct {
+    netio       NetIO
+    counters    Counters
+}

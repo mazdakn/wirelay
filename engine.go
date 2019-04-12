@@ -1,22 +1,16 @@
 package main
 
 import (
-    "log"
     "sync"
 	"os"
 	"os/signal"
 	"syscall"
 )
 
-type EngineEntry struct {
-    netio       NetIO
-    counters    Counters
-}
-
 type Engine struct {
     conf    Configuration
-    ports   [NETIO_MAX]EngineEntry
-    rules   Policy
+    data    DataPlane
+    control ControlPlane
 }
 
 /* Initilizing the Wirelay Engine
@@ -30,20 +24,12 @@ func (e *Engine) Init() {
     err = e.conf.Init()
     Fatal(err)
 
-    // Create local TUN interface
-    e.ports[NETIO_LOCAL].netio = &TunTap{Name: e.conf.content.Name}
-    err = e.ports[NETIO_LOCAL].netio.Init()
+    e.data.conf = &(e.conf)
+    err = e.data.Init()
     Fatal(err)
 
-    e.ports[NETIO_TUNNEL].netio = &UDPSocket{LocalSocket: e.conf.content.Address}
-    err = e.ports[NETIO_TUNNEL].netio.Init()
-    Fatal(err)
-
-    e.ports[NETIO_DROP].netio = &Drop{}
-    err = e.ports[NETIO_DROP].netio.Init()
-    Fatal(err)
-
-    err = e.rules.CompilePolicies(e.conf.content.Policies)
+    e.control.conf = &(e.conf)
+    err = e.control.Init()
     Fatal(err)
 
     // Setup and register signal handler
@@ -58,9 +44,9 @@ func (e *Engine) signalHandler(signal chan os.Signal) {
         sig := <-signal
         switch sig {
         case syscall.SIGUSR1:
-            e.PrintCounters()
+            e.data.PrintCounters()
         case syscall.SIGUSR2:
-            e.rules.DumpPolicies()
+            e.data.rules.DumpPolicies()
         case os.Interrupt, syscall.SIGTERM:
             Print("Shutting down")
             os.Exit(0)
@@ -72,70 +58,13 @@ func (e *Engine) signalHandler(signal chan os.Signal) {
     }
 }
 
-
 func (e *Engine) Start() {
     var waitGroup sync.WaitGroup
 
-	Print("Starting wirelay core")
-
-    go e.Forward(&e.ports[NETIO_LOCAL], &waitGroup)
-    go e.Forward(&e.ports[NETIO_TUNNEL], &waitGroup)
-    waitGroup.Add(2)
+	Print("Starting wirelay dataplane")
+    dataGo := e.data.Start(&waitGroup)
+    waitGroup.Add(dataGo)
 
 	waitGroup.Wait()
 	Print("Shuting down")
-}
-
-
-func (e *Engine) Forward(dev *EngineEntry, waitGroup *sync.WaitGroup) {
-    var pkt Packet
-    var action PolicyAction
-    var found bool
-
-   // TODO: set MTU and read correct number of bytes
-    pkt.Data = make([]byte, 2000)
-
-    defer waitGroup.Done()
-    for {
-        if err := dev.netio.Receive(&pkt); err != nil {
-            dev.counters.ErrReceive++
-            continue
-        }
-
-        dev.counters.Received++
-
-        if !pkt.IsIPv4() {
-            dev.counters.UnSupported++
-            continue
-        }
-
-        if action, found = e.rules.Lookup(&pkt); !found {
-            dev.counters.Dropped++
-            continue
-        }
-
-        pkt.Endpoint = action.endpoint
-        if err := e.ports[action.egress].netio.Send(&pkt); err != nil {
-            dev.counters.ErrSend++
-            continue
-        }
-
-        dev.counters.Sent++
-    }
-}
-
-
-func (e *Engine) PrintCounters() {
-    names := []string{"Local", "Tunnel"}
-    Print("Engine counters:")
-
-    for index, entry := range e.ports {
-        log.Println(names[index] + ":")
-        log.Println("\tReceived:\t", entry.counters.Received)
-        log.Println("\tSent:\t\t", entry.counters.Sent)
-        log.Println("\tDropped:\t", entry.counters.Dropped)
-        log.Println("\tUnsupported:\t", entry.counters.UnSupported)
-        log.Println("\tError Receive:\t", entry.counters.ErrReceive)
-        log.Println("\tError Send:\t", entry.counters.ErrSend)
-    }
 }
