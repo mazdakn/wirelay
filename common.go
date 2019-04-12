@@ -13,3 +13,12 @@ const (
     NETIO_DROP     uint8 = 2
     NETIO_MAX      uint8 = 3
 )
+
+type Counters struct {
+    Received    uint32
+    Sent        uint32
+    Dropped     uint32
+    ErrReceive  uint32
+    ErrSend     uint32
+    UnSupported uint32
+}

@@ -8,15 +8,6 @@ import (
 	"syscall"
 )
 
-type Counters struct {
-    Received    uint32
-    Sent        uint32
-    Dropped     uint32
-    ErrReceive  uint32
-    ErrSend     uint32
-    UnSupported uint32
-}
-
 type EngineEntry struct {
     netio       NetIO
     counters    Counters
@@ -60,7 +51,6 @@ func (e *Engine) Init() {
     signal.Notify(sigs)
     go e.signalHandler(sigs)
 }
-
 
 // signal handler for Interrupt, Terminate, and SIGHUP
 func (e *Engine) signalHandler(signal chan os.Signal) {
@@ -136,7 +126,6 @@ func (e *Engine) Forward(dev *EngineEntry, waitGroup *sync.WaitGroup) {
 
 
 func (e *Engine) PrintCounters() {
-
     names := []string{"Local", "Tunnel"}
     Print("Engine counters:")
 
