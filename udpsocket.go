@@ -12,14 +12,14 @@ var (
     ErrTunnelSocketListener = errors.New("Invalid local address")
 )
 
-type Tunnel struct {
+type UDPSocket struct {
     listener    *net.UDPConn
     local       *net.UDPAddr
     LocalSocket string
 }
 
 // initialize udp tunnel
-func (t *Tunnel) Init() (error) {
+func (t *UDPSocket) Init() (error) {
     var err error
 
     t.listener = nil
@@ -39,13 +39,13 @@ func (t *Tunnel) Init() (error) {
 }
 
 // close udp tunnel
-func (t *Tunnel) Close() (error) {
+func (t *UDPSocket) Close() (error) {
     t.listener.Close()
     return nil
 }
 
 // receive packet from remote peer
-func (t *Tunnel) Receive(pkt *Packet) (error) {
+func (t *UDPSocket) Receive(pkt *Packet) (error) {
     var err error
     var n int
 
@@ -68,7 +68,7 @@ func (t *Tunnel) Receive(pkt *Packet) (error) {
 }
 
 // send packet to remote peer
-func (t *Tunnel) Send(pkt *Packet) (error) {
+func (t *UDPSocket) Send(pkt *Packet) (error) {
     var err error
 
     if t.listener == nil {

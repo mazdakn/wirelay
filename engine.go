@@ -44,7 +44,7 @@ func (e *Engine) Init() {
     err = e.ports[NETIO_LOCAL].netio.Init()
     Fatal(err)
 
-    e.ports[NETIO_TUNNEL].netio = &Tunnel{LocalSocket: e.conf.content.Address}
+    e.ports[NETIO_TUNNEL].netio = &UDPSocket{LocalSocket: e.conf.content.Address}
     err = e.ports[NETIO_TUNNEL].netio.Init()
     Fatal(err)
 
