@@ -8,20 +8,6 @@ import (
 	"syscall"
 )
 
-type NetIO interface {
-    Init() (error)
-    Close() (error)
-    Receive(*Packet) (error)
-    Send(*Packet) (error)
-}
-
-const (
-    NETIO_LOCAL    uint8 = 0
-    NETIO_FORWARD  uint8 = 1
-    NETIO_DROP     uint8 = 2
-    NETIO_MAX      uint8 = 3
-)
-
 type Counters struct {
     Received    uint32
     Sent        uint32
@@ -37,11 +23,10 @@ type EngineEntry struct {
 }
 
 type Engine struct {
-    conf Configuration
-    nodes [NETIO_MAX]EngineEntry
-    rules Policy
+    conf    Configuration
+    ports   [NETIO_MAX]EngineEntry
+    rules   Policy
 }
-
 
 /* Initilizing the Wirelay Engine
    1 - Create and initialize the slice of interfaces from the Configuration
@@ -55,24 +40,21 @@ func (e *Engine) Init() {
     Fatal(err)
 
     // Create local TUN interface
-    e.nodes[NETIO_LOCAL].netio = &TunTap{Name: e.conf.content.Name}
-    err = e.nodes[NETIO_LOCAL].netio.Init()
+    e.ports[NETIO_LOCAL].netio = &TunTap{Name: e.conf.content.Name}
+    err = e.ports[NETIO_LOCAL].netio.Init()
     Fatal(err)
-    //err = e.nodes[NETIO_LOCAL].rules.CompilePolicies(e.conf.content.Policies)
-    //Fatal(err)
 
-    e.nodes[NETIO_FORWARD].netio = &Tunnel{LocalSocket: e.conf.content.Address}
-    err = e.nodes[NETIO_FORWARD].netio.Init()
+    e.ports[NETIO_TUNNEL].netio = &Tunnel{LocalSocket: e.conf.content.Address}
+    err = e.ports[NETIO_TUNNEL].netio.Init()
     Fatal(err)
-    //err = e.nodes[NETIO_FORWARD].rules.CompilePolicies(e.conf.content.Policies)
-    //Fatal(err)
 
-    e.nodes[NETIO_DROP].netio = &Drop{}
-    err = e.nodes[NETIO_DROP].netio.Init()
+    e.ports[NETIO_DROP].netio = &Drop{}
+    err = e.ports[NETIO_DROP].netio.Init()
     Fatal(err)
 
     err = e.rules.CompilePolicies(e.conf.content.Policies)
     Fatal(err)
+
     // Setup and register signal handler
     sigs := make(chan os.Signal, 1)
     signal.Notify(sigs)
@@ -89,7 +71,6 @@ func (e *Engine) signalHandler(signal chan os.Signal) {
             e.PrintCounters()
         case syscall.SIGUSR2:
             e.rules.DumpPolicies()
-            //nodes[NETIO_FORWARD].rules.DumpPolicies()
         case os.Interrupt, syscall.SIGTERM:
             Print("Shutting down")
             os.Exit(0)
@@ -107,8 +88,8 @@ func (e *Engine) Start() {
 
 	Print("Starting wirelay core")
 
-    go e.Forward(&e.nodes[NETIO_LOCAL], &waitGroup)
-    go e.Forward(&e.nodes[NETIO_FORWARD], &waitGroup)
+    go e.Forward(&e.ports[NETIO_LOCAL], &waitGroup)
+    go e.Forward(&e.ports[NETIO_TUNNEL], &waitGroup)
     waitGroup.Add(2)
 
 	waitGroup.Wait()
@@ -144,7 +125,7 @@ func (e *Engine) Forward(dev *EngineEntry, waitGroup *sync.WaitGroup) {
         }
 
         pkt.Endpoint = action.endpoint
-        if err := e.nodes[action.egress].netio.Send(&pkt); err != nil {
+        if err := e.ports[action.egress].netio.Send(&pkt); err != nil {
             dev.counters.ErrSend++
             continue
         }
@@ -159,7 +140,7 @@ func (e *Engine) PrintCounters() {
     names := []string{"Local", "Tunnel"}
     Print("Engine counters:")
 
-    for index, entry := range e.nodes {
+    for index, entry := range e.ports {
         log.Println(names[index] + ":")
         log.Println("\tReceived:\t", entry.counters.Received)
         log.Println("\tSent:\t\t", entry.counters.Sent)

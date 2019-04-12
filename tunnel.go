@@ -26,12 +26,12 @@ func (t *Tunnel) Init() (error) {
     t.local = nil
 
     // resolve local address -> ip:port    
-    if t.local, err = net.ResolveUDPAddr ("udp4", t.LocalSocket); err != nil {
+    if t.local, err = net.ResolveUDPAddr("udp4", t.LocalSocket); err != nil {
         return err
     }
 
     // listen on local ip:port
-    if t.listener, err = net.ListenUDP ("udp4", t.local); err != nil {
+    if t.listener, err = net.ListenUDP("udp4", t.local); err != nil {
         return err
     }
 
@@ -54,7 +54,7 @@ func (t *Tunnel) Receive(pkt *Packet) (error) {
     }
 
     // read packet from udp tunnel
-    if n, _, err = t.listener.ReadFromUDP (pkt.Data); err != nil {
+    if n, _, err = t.listener.ReadFromUDP(pkt.Data); err != nil {
         return ErrTunnelSocketRX
     }
 
@@ -76,7 +76,7 @@ func (t *Tunnel) Send(pkt *Packet) (error) {
     }
 
     // send packet to udp tunnel
-    if _, err = t.listener.WriteToUDP (pkt.Data[:pkt.Size], pkt.Endpoint); err != nil {
+    if _, err = t.listener.WriteToUDP(pkt.Data[:pkt.Size], pkt.Endpoint); err != nil {
         return err
     }
 

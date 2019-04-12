@@ -37,15 +37,12 @@ func (iface *TunTap) Receive(pkt *Packet) (error) {
         return err
     }
 
-    // TODO: more error handling
-
     pkt.Size = uint16(n)
 
     return nil
 }
 
 func (iface *TunTap) Send(pkt *Packet) (error) {
-
     iface.device.Write(pkt.Data[:pkt.Size])
     return nil
 }

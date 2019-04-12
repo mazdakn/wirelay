@@ -34,7 +34,6 @@ type Policy struct {
 }
 
 func (p *Policy) CompilePolicies(policies []PolicyEntryFile) (error) {
-
     tmpPolicy := make([]PolicyEntry, 0)
 
     for _, pol := range policies {
@@ -73,9 +72,9 @@ func (p *Policy) CompilePolicies(policies []PolicyEntryFile) (error) {
         }
 
         switch pol.Action {
-        case "LOCAL"    : entry.Action.egress = NETIO_LOCAL  //e.local.netio
-        case "FORWARD"  : entry.Action.egress = NETIO_FORWARD //e.tunnel.netio
-        default         : entry.Action.egress = NETIO_DROP //nil
+        case "LOCAL"    : entry.Action.egress = NETIO_LOCAL
+        case "FORWARD"  : entry.Action.egress = NETIO_TUNNEL
+        default         : entry.Action.egress = NETIO_DROP
         }
 
         entry.Action.endpoint = endpoint
@@ -133,7 +132,7 @@ func (p *Policy) DumpPolicies() {
 
         switch pol.Action.egress {
         case NETIO_LOCAL   : output = output + "local "
-        case NETIO_FORWARD : output = output + "forward "
+        case NETIO_TUNNEL  : output = output + "forward "
         case NETIO_DROP    : output = output + "drop "
         default            : output = output + "unknown "
         }

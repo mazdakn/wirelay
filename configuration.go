@@ -10,15 +10,16 @@ import (
 )
 
 var (
-    ErrEngineConfigFile = errors.New("Error in config file")
+    ErrNoConfigFile = errors.New("Need a config file")
+    ErrInConfigFile = errors.New("Error in config file")
 )
 
 type EngineConfiguration struct {
-    Name     string `json:"name"`
-    Address  string `json:"address"`
-    Key      string `json:"key"`
-    Pubkey   string `json:"pubkey"`
-    Policies []PolicyEntryFile `json:"policy"`
+    Name     string             `json:"name"`
+    Address  string             `json:"address"`
+    Key      string             `json:"key"`
+    Pubkey   string             `json:"pubkey"`
+    Policies []PolicyEntryFile  `json:"policy"`
 }
 
 type PolicyEntryFile struct {
@@ -39,11 +40,11 @@ func (c *Configuration) Init() (error) {
 	c.parse()
 
 	if c.Filename == "" {
-		return ErrEngineConfigFile
+		return ErrNoConfigFile
 	}
 
 	if err := c.ReadJSON(); err != nil {
-        return ErrEngineConfigFile
+        return ErrInConfigFile
     }
 
 	return nil
