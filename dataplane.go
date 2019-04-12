@@ -89,7 +89,7 @@ func (d *DataPlane) Forward(dev *NetworkPort, waitGroup *sync.WaitGroup) {
 }
 
 func (d *DataPlane) PrintCounters() {
-    names := []string{"Local", "Tunnel"}
+    names := []string{"Local", "Tunnel", "Drop"}
     Print("Engine counters:")
 
     for index, entry := range d.ports {
