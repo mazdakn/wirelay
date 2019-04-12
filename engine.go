@@ -6,9 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"net"
-	"errors"
-	"strconv"
 )
 
 type NetIO interface {
@@ -36,13 +33,13 @@ type Counters struct {
 
 type EngineEntry struct {
     netio       NetIO
-    rules       Policy
     counters    Counters
 }
 
 type Engine struct {
     conf Configuration
     nodes [NETIO_MAX]EngineEntry
+    rules Policy
 }
 
 
@@ -61,19 +58,21 @@ func (e *Engine) Init() {
     e.nodes[NETIO_LOCAL].netio = &TunTap{Name: e.conf.content.Name}
     err = e.nodes[NETIO_LOCAL].netio.Init()
     Fatal(err)
-    err = e.nodes[NETIO_LOCAL].rules.CompilePolicies(e.conf.content.Policies)
-    Fatal(err)
+    //err = e.nodes[NETIO_LOCAL].rules.CompilePolicies(e.conf.content.Policies)
+    //Fatal(err)
 
     e.nodes[NETIO_FORWARD].netio = &Tunnel{LocalSocket: e.conf.content.Address}
     err = e.nodes[NETIO_FORWARD].netio.Init()
     Fatal(err)
-    err = e.nodes[NETIO_FORWARD].rules.CompilePolicies(e.conf.content.Policies)
-    Fatal(err)
+    //err = e.nodes[NETIO_FORWARD].rules.CompilePolicies(e.conf.content.Policies)
+    //Fatal(err)
 
     e.nodes[NETIO_DROP].netio = &Drop{}
     err = e.nodes[NETIO_DROP].netio.Init()
     Fatal(err)
 
+    err = e.rules.CompilePolicies(e.conf.content.Policies)
+    Fatal(err)
     // Setup and register signal handler
     sigs := make(chan os.Signal, 1)
     signal.Notify(sigs)
@@ -89,7 +88,8 @@ func (e *Engine) signalHandler(signal chan os.Signal) {
         case syscall.SIGUSR1:
             e.PrintCounters()
         case syscall.SIGUSR2:
-            e.DumpPolicies()
+            e.rules.DumpPolicies()
+            //nodes[NETIO_FORWARD].rules.DumpPolicies()
         case os.Interrupt, syscall.SIGTERM:
             Print("Shutting down")
             os.Exit(0)
@@ -138,7 +138,7 @@ func (e *Engine) Forward(dev *EngineEntry, waitGroup *sync.WaitGroup) {
             continue
         }
 
-        if action, found = e.Lookup(&pkt); !found {
+        if action, found = e.rules.Lookup(&pkt); !found {
             dev.counters.Dropped++
             continue
         }
@@ -156,11 +156,10 @@ func (e *Engine) Forward(dev *EngineEntry, waitGroup *sync.WaitGroup) {
 
 func (e *Engine) PrintCounters() {
 
-    links := []EngineEntry{e.local, e.tunnel}
     names := []string{"Local", "Tunnel"}
     Print("Engine counters:")
 
-    for index, entry := range links {
+    for index, entry := range e.nodes {
         log.Println(names[index] + ":")
         log.Println("\tReceived:\t", entry.counters.Received)
         log.Println("\tSent:\t\t", entry.counters.Sent)

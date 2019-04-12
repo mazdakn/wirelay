@@ -2,10 +2,6 @@ package main
 
 import (
     "log"
-    "sync"
-    "os"
-    "os/signal"
-    "syscall"
     "net"
     "errors"
     "strconv"
@@ -16,7 +12,6 @@ var (
     ErrPolicyEmptyAction  = errors.New("Action is node defined")
     ErrPolicyIndexInvalid = errors.New("Index out of bound")
 )
-
 
 type PolicyMatch struct {
     dstSubnet   *net.IPNet
@@ -37,7 +32,6 @@ type PolicyEntry struct {
 type Policy struct {
 	rules []PolicyEntry
 }
-
 
 func (p *Policy) CompilePolicies(policies []PolicyEntryFile) (error) {
 
@@ -96,7 +90,7 @@ func (p *Policy) CompilePolicies(policies []PolicyEntryFile) (error) {
 
 func (p *Policy) Lookup(pkt *Packet) (PolicyAction, bool) {
 
-    for _, entry := range p.policy {
+    for _, entry := range p.rules {
         if (entry.Match.dstSubnet != nil) && (!entry.Match.dstSubnet.Contains(pkt.GetDestinationIPv4())) {
             continue
         }
@@ -138,10 +132,10 @@ func (p *Policy) DumpPolicies() {
         output = output + " ==> "
 
         switch pol.Action.egress {
-        case NETIO_LOCAL  : output = output + "local "
+        case NETIO_LOCAL   : output = output + "local "
         case NETIO_FORWARD : output = output + "forward "
         case NETIO_DROP    : output = output + "drop "
-        default             : output = output + "unknown "
+        default            : output = output + "unknown "
         }
 
         if pol.Action.endpoint != nil {
