@@ -11,12 +11,6 @@ import (
 	"strconv"
 )
 
-var (
-    ErrPolicyEmptyMatch   = errors.New("Match criteria is not defined")
-    ErrPolicyEmptyAction  = errors.New("Action is node defined")
-    ErrPolicyIndexInvalid = errors.New("Index out of bound")
-)
-
 type NetIO interface {
     Init() (error)
     Close() (error)
@@ -24,28 +18,12 @@ type NetIO interface {
     Send(*Packet) (error)
 }
 
-type PolicyMatch struct {
-    dstSubnet   *net.IPNet
-    srcSubnet   *net.IPNet
-}
-
-//const (
-//    ACTION_FORWARD  uint8 = 0
-//    ACTION_TUNNEL   uint8 = 1
-//    ACTION_DROP     uint8 = 2
-//)
-
-type PolicyAction struct {
-    //action      uint8
-    egress      NetIO
-    endpoint    *net.UDPAddr
-}
-
-type PolicyEntry struct {
-    Match  PolicyMatch
-    Action PolicyAction
-    TimeToLive  int
-}
+const (
+    NETIO_LOCAL    uint8 = 0
+    NETIO_FORWARD  uint8 = 1
+    NETIO_DROP     uint8 = 2
+    NETIO_MAX      uint8 = 3
+)
 
 type Counters struct {
     Received    uint32
@@ -58,14 +36,13 @@ type Counters struct {
 
 type EngineEntry struct {
     netio       NetIO
+    rules       Policy
     counters    Counters
 }
 
 type Engine struct {
     conf Configuration
-    policy []PolicyEntry
-    local  EngineEntry
-    tunnel EngineEntry
+    nodes [NETIO_MAX]EngineEntry
 }
 
 
@@ -81,15 +58,20 @@ func (e *Engine) Init() {
     Fatal(err)
 
     // Create local TUN interface
-    e.local.netio = &TunTap{Name: e.conf.content.Name}
-    err = e.local.netio.Init()
+    e.nodes[NETIO_LOCAL].netio = &TunTap{Name: e.conf.content.Name}
+    err = e.nodes[NETIO_LOCAL].netio.Init()
+    Fatal(err)
+    err = e.nodes[NETIO_LOCAL].rules.CompilePolicies(e.conf.content.Policies)
     Fatal(err)
 
-    e.tunnel.netio = &Tunnel{LocalSocket: e.conf.content.Address}
-    err = e.tunnel.netio.Init()
+    e.nodes[NETIO_FORWARD].netio = &Tunnel{LocalSocket: e.conf.content.Address}
+    err = e.nodes[NETIO_FORWARD].netio.Init()
+    Fatal(err)
+    err = e.nodes[NETIO_FORWARD].rules.CompilePolicies(e.conf.content.Policies)
     Fatal(err)
 
-    err = e.CompilePolicies(e.conf.content.Policies)
+    e.nodes[NETIO_DROP].netio = &Drop{}
+    err = e.nodes[NETIO_DROP].netio.Init()
     Fatal(err)
 
     // Setup and register signal handler
@@ -125,8 +107,8 @@ func (e *Engine) Start() {
 
 	Print("Starting wirelay core")
 
-    go e.Forward(&e.local, &waitGroup)
-    go e.Forward(&e.tunnel, &waitGroup)
+    go e.Forward(&e.nodes[NETIO_LOCAL], &waitGroup)
+    go e.Forward(&e.nodes[NETIO_FORWARD], &waitGroup)
     waitGroup.Add(2)
 
 	waitGroup.Wait()
@@ -161,135 +143,13 @@ func (e *Engine) Forward(dev *EngineEntry, waitGroup *sync.WaitGroup) {
             continue
         }
 
-        if action.egress == nil {
-            dev.counters.Dropped++
-            continue
-        }
-
         pkt.Endpoint = action.endpoint
-        if err := action.egress.Send(&pkt); err != nil {
+        if err := e.nodes[action.egress].netio.Send(&pkt); err != nil {
             dev.counters.ErrSend++
             continue
         }
 
         dev.counters.Sent++
-    }
-}
-
-
-func (e *Engine) CompilePolicies(policies []PolicyEntryFile) (error) {
-
-    tmpPolicy := make([]PolicyEntry, 0)
-
-    for _, pol := range policies {
-        var subnet *net.IPNet
-        var endpoint *net.UDPAddr
-        var err error
-
-        entry := PolicyEntry{}
-
-        if pol.DstSubnet != "" {
-            if _, subnet, err = net.ParseCIDR(pol.DstSubnet); err != nil {
-                // TODO: log and continue
-                return err
-            }
-
-            entry.Match.dstSubnet = subnet
-        }
-
-        if pol.SrcSubnet != "" {
-            if _, subnet, err = net.ParseCIDR(pol.SrcSubnet); err != nil {
-                //TODO: log and continue
-                return err
-            }
-
-            entry.Match.srcSubnet = subnet
-        }
-
-        if pol.ttl > 0 {
-            entry.TimeToLive = pol.ttl
-        }
-
-        if pol.Endpoint != "" {
-            if endpoint, err = net.ResolveUDPAddr("udp4", pol.Endpoint); err != nil {
-                return err
-            }
-        }
-
-        switch pol.Action {
-        case "LOCAL"  : entry.Action.egress = e.local.netio
-        case "TUNNEL" : entry.Action.egress = e.tunnel.netio
-        default       : entry.Action.egress = nil
-        }
-
-        entry.Action.endpoint = endpoint
-
-        tmpPolicy = append(tmpPolicy, entry)
-    }
-
-    e.policy = tmpPolicy
-    return nil
-}
-
-func (e *Engine) Lookup(pkt *Packet) (PolicyAction, bool) {
-
-    for _, entry := range e.policy {
-        if (entry.Match.dstSubnet != nil) && (!entry.Match.dstSubnet.Contains(pkt.GetDestinationIPv4())) {
-            continue
-        }
-
-        if (entry.Match.srcSubnet != nil) && (!entry.Match.srcSubnet.Contains(pkt.GetSourceIPv4())) {
-            continue
-        }
-
-        return entry.Action, true
-    }
-
-    return PolicyAction{}, false
-}
-
-
-func (e *Engine) DumpPolicies() {
-    var output string
-
-    Print("Engine policies:")
-
-    for index, pol := range e.policy {
-
-        output = "[" + strconv.Itoa(index) + "] "
-
-        if pol.Match.srcSubnet != nil {
-            output = output + pol.Match.srcSubnet.String()
-        } else {
-            output = output + "*"
-        }
-
-        output = output + " "
-
-        if pol.Match.dstSubnet != nil {
-            output = output + pol.Match.dstSubnet.String()
-        } else {
-            output = output + "*"
-        }
-
-        output = output + " ==> "
-
-        switch pol.Action.egress {
-        case e.local.netio :    output = output + "local "
-        case e.tunnel.netio:    output = output + "forward "
-        case nil:               output = output + "drop "
-        default:                output = output + "unknown "
-        }
-
-        if pol.Action.endpoint != nil {
-            output = output + pol.Action.endpoint.String()
-        }
-
-        if pol.TimeToLive != 0 {
-            output = " " + output + strconv.Itoa(pol.TimeToLive)
-        }
-
-        log.Println(output)
     }
 }
 
