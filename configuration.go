@@ -20,6 +20,7 @@ type EngineConfiguration struct {
     Data     string             `json:"data"`
     Key      string             `json:"key"`
     Pubkey   string             `json:"pubkey"`
+    Networks []string           `json:"networks"`
     Policies []PolicyEntryFile  `json:"policy"`
 }
 

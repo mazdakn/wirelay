@@ -13,36 +13,55 @@ import (
 type Engine struct {
     conf    Configuration
     data    DataPlane
-    nodes   map[string]NodesType
+    nodes   map[string]NodeType
 }
 
-type NodesType struct {
+type NodeType struct {
+    Name            string   `json:"name"`
     ControlAddr     string   `json:"control"`
     DataAddr        string   `json:"data"`
     Pubkey          string   `json:"pubkey"`
     Networks        []string `json:"networks"`
 }
 
-func (e *Engine) registerNode(w http.ResponseWriter, r *http.Request) {
-   var node NodesType
+func (e *Engine) registerHandler(w http.ResponseWriter, r *http.Request) {
+    var node    NodeType
+    action := "Registered"
 
-   json.NewDecoder(r.Body).Decode(&node)
-   log.Println(node)
-   log.Println("Registered =>", r.Host)
+    if r.Method == "POST" {
+        json.NewDecoder(r.Body).Decode(&node)
+
+        if node.Name == "" || node.ControlAddr == "" || node.DataAddr == "" || len(node.Networks) == 0 { //TODO: what about pubkey?
+            return
+        }
+
+        if _, found := e.nodes[node.Name]; found {
+            action = "Updated"
+        }
+
+        e.nodes[node.Name] = node
+
+        for _, net := range node.Networks {
+            e.data.rules.CompilePolicy(PolicyEntryFile{DstSubnet: net, Action: "FORWARD", Endpoint: node.DataAddr})
+        }
+        log.Println(e.nodes)
+        log.Println(action, r.RemoteAddr)
+    }
 }
 
-func (e *Engine) expose(w http.ResponseWriter, r *http.Request) {
-    node := NodesType{}
+func (e *Engine) exposeHandler(w http.ResponseWriter, r *http.Request) {
+    node := NodeType{}
 
-    //log.Println(e.conf.content)
-    node.ControlAddr = e.conf.content.Control
-    node.DataAddr    = e.conf.content.Data
-    node.Pubkey      = e.conf.content.Pubkey
-     node.Networks    = []string{} //TODO: Fix it
+    if r.Method == "GET" {
+        node.Name        = e.conf.content.Name
+        node.ControlAddr = e.conf.content.Control
+        node.DataAddr    = e.conf.content.Data
+        node.Pubkey      = e.conf.content.Pubkey
+        node.Networks    = e.conf.content.Networks
 
-    log.Println(node)
-    json.NewEncoder(w).Encode(&node)
-    log.Println("About Me =>", r.Host)
+        json.NewEncoder(w).Encode(&node)
+        log.Println("Exposed to", r.RemoteAddr)
+    }
 }
 
 /* Initilizing the Wirelay Engine
@@ -60,13 +79,15 @@ func (e *Engine) Init() {
     err = e.data.Init()
     Fatal(err)
 
+    e.nodes = make(map[string]NodeType)
+
     // Setup and register signal handler
     sigs := make(chan os.Signal, 1)
     signal.Notify(sigs)
     go e.signalHandler(sigs)
 
-    http.HandleFunc("/register", e.registerNode)
-    http.HandleFunc("/about", e.expose)
+    http.HandleFunc("/register", e.registerHandler)
+    http.HandleFunc("/expose", e.exposeHandler)
 
     go http.ListenAndServe(e.conf.content.Control, nil)
 }
@@ -101,5 +122,3 @@ func (e *Engine) Start() {
 	waitGroup.Wait()
 	Print("Shuting down")
 }
-
-

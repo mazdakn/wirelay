@@ -33,56 +33,46 @@ type Policy struct {
 	rules []PolicyEntry
 }
 
-func (p *Policy) CompilePolicies(policies []PolicyEntryFile) (error) {
-    tmpPolicy := make([]PolicyEntry, 0)
+func (p *Policy) CompilePolicy(pol PolicyEntryFile) (error) {
+    var subnet *net.IPNet
+    var endpoint *net.UDPAddr
+    var err error
 
-    for _, pol := range policies {
-        var subnet *net.IPNet
-        var endpoint *net.UDPAddr
-        var err error
+    entry := PolicyEntry{}
 
-        entry := PolicyEntry{}
-
-        if pol.DstSubnet != "" {
-            if _, subnet, err = net.ParseCIDR(pol.DstSubnet); err != nil {
-                // TODO: log and continue
-                return err
-            }
-
-            entry.Match.dstSubnet = subnet
+    if pol.DstSubnet != "" {
+        if _, subnet, err = net.ParseCIDR(pol.DstSubnet); err != nil {
+            // TODO: log and continue
+            return err
         }
 
-        if pol.SrcSubnet != "" {
-            if _, subnet, err = net.ParseCIDR(pol.SrcSubnet); err != nil {
-                //TODO: log and continue
-                return err
-            }
-
-            entry.Match.srcSubnet = subnet
-        }
-
-        if pol.ttl > 0 {
-            entry.TimeToLive = pol.ttl
-        }
-
-        if pol.Endpoint != "" {
-            if endpoint, err = net.ResolveUDPAddr("udp4", pol.Endpoint); err != nil {
-                return err
-            }
-        }
-
-        switch pol.Action {
-        case "LOCAL"    : entry.Action.egress = NETIO_LOCAL
-        case "FORWARD"  : entry.Action.egress = NETIO_TUNNEL
-        default         : entry.Action.egress = NETIO_DROP
-        }
-
-        entry.Action.endpoint = endpoint
-
-        tmpPolicy = append(tmpPolicy, entry)
+        entry.Match.dstSubnet = subnet
     }
 
-    p.rules = tmpPolicy
+    if pol.SrcSubnet != "" {
+        if _, subnet, err = net.ParseCIDR(pol.SrcSubnet); err != nil {
+            //TODO: log and continue
+            return err
+        }
+
+        entry.Match.srcSubnet = subnet
+    }
+
+    if pol.Endpoint != "" {
+        if endpoint, err = net.ResolveUDPAddr("udp4", pol.Endpoint); err != nil {
+            return err
+        }
+    }
+
+    switch pol.Action {
+    case "LOCAL"    : entry.Action.egress = NETIO_LOCAL
+    case "FORWARD"  : entry.Action.egress = NETIO_TUNNEL
+    default         : entry.Action.egress = NETIO_DROP
+    }
+
+    entry.Action.endpoint = endpoint
+
+    p.rules = append(p.rules, entry)
     return nil
 }
 

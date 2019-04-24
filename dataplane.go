@@ -35,8 +35,10 @@ func (d *DataPlane) Init() (error){
         return err
     }
 
-    if err = d.rules.CompilePolicies(d.conf.content.Policies); err != nil {
-        return err
+    for _, pol := range d.conf.content.Policies {
+        if err = d.rules.CompilePolicy(pol); err != nil {
+            log.Println(err)
+        }
     }
 
     return nil
