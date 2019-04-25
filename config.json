@@ -2,6 +2,7 @@
 "name"    : "tehran",    
 "control" : "0.0.0.0:9001",
 "data"    : "0.0.0.0:9000",
+"bootstap": "192.168.0.1",
 "key"     : "xxxxx",
 "pubkey"  : "xxxxx",
 "networks": [
