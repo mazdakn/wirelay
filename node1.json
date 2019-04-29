@@ -1,9 +1,0 @@
-{
-"name"        : "tehran",    
-"control"     : "0.0.0.0:9001",
-"data"        : "0.0.0.0:9000",
-"pubkey"      : "xxxxx",
-"networks"    : [
-    "172.16.16.0/24"
-    ]
-}
