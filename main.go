@@ -1,7 +1,16 @@
 package main
 
+import (
+    "fmt"
+)
+
 func main() {
     var engine Engine
-    engine.Init()
+
+    if err := engine.Init(); err != nil {
+        fmt.Println(err)
+        return
+    }
+
     engine.Start()
 }
