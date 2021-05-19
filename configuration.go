@@ -1,3 +1,4 @@
+// configuration logic
 package main
 
 import (
