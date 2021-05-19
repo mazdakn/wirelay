@@ -1,3 +1,4 @@
+// packet definition
 package main
 
 import (
